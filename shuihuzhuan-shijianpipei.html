@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <!-- 自动将HTTP转换为HTTPS -->
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains">
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水浒传事件-好汉选择游戏</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#9b2226',      // 主色调-深红色
+                        secondary: '#0f766e',    // 辅助色-深绿色（好汉相关）
+                        accent: '#7c2d12',       // 强调色-棕色（事件相关）
+                        neutral: '#57534e',      // 中性色-深灰色
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+            }
+            .card-selected {
+                @apply ring-2 ring-primary scale-105 z-10;
+            }
+            .card-correct {
+                @apply ring-2 ring-green-500 bg-green-50;
+            }
+            .card-incorrect {
+                @apply ring-2 ring-red-500 bg-red-50;
+            }
+            .hero-added {
+                @apply bg-secondary/20 border-secondary;
+            }
+            .event-completed {
+                @apply opacity-70 pointer-events-none;
+            }
+            .badge-pulse {
+                animation: pulse 1.5s infinite;
+            }
+            .countdown-warning {
+                animation: warning 1s infinite alternate;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+            @keyframes warning {
+                from { color: inherit; }
+                to { color: #dc2626; }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50 to-orange-50 min-h-screen font-sans text-gray-800">
+    <div class="container mx-auto px-4 py-5">
+        <!-- 游戏标题和信息 -->
+        <header class="text-center mb-5">
+            <h1 class="text-2.5rem font-bold mb-2 tracking-tight">
+                水浒传<span class="text-primary">事件-好汉</span>选择游戏
+            </h1>
+            <p class="text-gray-600 mb-4 max-w-2xl mx-auto">
+                选择事件，然后从菜单中找出所有参与该事件的好汉
+            </p>
+            
+            <!-- 游戏状态 -->
+            <div class="bg-white rounded-lg shadow-md p-3 max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="flex items-center">
+                    <i class="fa fa-list-alt text-accent mr-2"></i>
+                    <div>
+                        <div class="text-xs text-gray-500">已完成事件</div>
+                        <div class="font-semibold" id="completedEvents">0/0</div>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <i class="fa fa-clock-o text-neutral mr-2"></i>
+                    <div>
+                        <div class="text-xs text-gray-500">剩余时间</div>
+                        <div class="font-semibold" id="gameTimer">00:00</div>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <i class="fa fa-lightbulb-o text-neutral mr-2"></i>
+                    <div>
+                        <div class="text-xs text-gray-500">提示次数</div>
+                        <div class="font-semibold" id="hintCount">0/3</div>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <i class="fa fa-tasks text-primary mr-2"></i>
+                    <div>
+                        <div class="text-xs text-gray-500">总事件数</div>
+                        <div class="font-semibold" id="totalEventsDisplay">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap justify-center gap-3 mb-5">
+                <button id="settingsBtn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-5 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                    <i class="fa fa-cog mr-1"></i> 设置
+                </button>
+                <button id="startBtn" class="bg-primary hover:bg-primary/90 text-white font-bold py-2 px-5 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                    开始游戏
+                </button>
+                <button id="hintBtn" class="bg-neutral hover:bg-neutral/90 text-white font-bold py-2 px-5 rounded-lg shadow-md transition-all duration-300 focus:outline-none opacity-50 pointer-events-none">
+                    <i class="fa fa-lightbulb-o mr-1"></i> 提示
+                </button>
+                <button id="historyBtn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-5 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                    查看历史
+                </button>
+            </div>
+        </header>
+        
+        <!-- 游戏设置弹窗 -->
+        <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-3 transform transition-all duration-300 scale-95 opacity-0" id="settingsModalContent">
+                <div class="text-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-800 mb-1.5">游戏设置</h2>
+                    <p class="text-gray-600">自定义你的游戏体验</p>
+                </div>
+                
+                <div class="space-y-4 mb-5">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-1.5" for="eventCount">
+                            事件数量
+                        </label>
+                        <select id="eventCount" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="5">5个事件</option>
+                            <option value="10" selected>10个事件</option>
+                            <option value="15">15个事件</option>
+                            <option value="20">20个事件</option>
+                            <option value="all">所有事件</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-1.5" for="timerDuration">
+                            倒计时时长 (分钟)
+                        </label>
+                        <input type="number" id="timerDuration" min="1" max="60" value="5"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary">
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <input type="checkbox" id="showAlias" checked
+                               class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary">
+                        <label for="showAlias" class="ml-2 block text-gray-700 text-sm">
+                            显示好汉别称
+                        </label>
+                    </div>
+                </div>
+                
+                <button id="saveSettingsBtn" class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                    保存设置
+                </button>
+            </div>
+        </div>
+        
+        <!-- 游戏区域 -->
+        <div class="flex flex-col lg:flex-row gap-5 mb-5">
+            <!-- 左侧：事件卡片区域 -->
+            <div class="lg:w-2/3">
+                <div class="bg-white rounded-xl shadow-md p-4 mb-4">
+                    <h2 class="text-lg font-semibold text-accent mb-3 flex items-center">
+                        <i class="fa fa-flag mr-2"></i> 事件列表
+                        <span class="ml-2 text-sm font-normal text-gray-500">(点击选择一个事件)</span>
+                    </h2>
+                    <div id="eventsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 min-h-[150px] opacity-50 pointer-events-none transition-opacity duration-500">
+                        <!-- 事件卡片将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 当前事件和已选好汉 -->
+                <div class="bg-white rounded-xl shadow-md p-4 mb-4">
+                    <h2 class="text-lg font-semibold text-primary mb-3 flex items-center">
+                        <i class="fa fa-info-circle mr-2"></i> 当前事件
+                        <span id="currentEventBadge" class="ml-2 bg-accent/10 text-accent text-xs px-2 py-0.5 rounded-full hidden">
+                            选择中
+                        </span>
+                    </h2>
+                    <div id="currentEventContainer" class="mb-4 min-h-[50px] flex items-center justify-center text-gray-500">
+                        请从上方选择一个事件
+                    </div>
+                    
+                    <h3 class="text-base font-medium text-secondary mb-2">已选择的好汉</h3>
+                    <div id="selectedHeroesContainer" class="flex flex-wrap gap-2 min-h-[60px] pb-2">
+                        <!-- 已选择的好汉标签将在这里显示 -->
+                        <div class="text-gray-500 text-sm italic">暂无选择</div>
+                    </div>
+                    
+                    <div class="flex justify-between mt-3">
+                        <button id="clearSelectionBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1.5 px-4 rounded-lg shadow-sm transition-all duration-300 focus:outline-none text-sm opacity-50 pointer-events-none">
+                            <i class="fa fa-eraser mr-1"></i> 清空选择
+                        </button>
+                        <button id="submitSelectionBtn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-1.5 px-4 rounded-lg shadow-sm transition-all duration-300 focus:outline-none text-sm opacity-50 pointer-events-none">
+                            <i class="fa fa-check mr-1"></i> 提交答案
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：好汉菜单 -->
+            <div class="lg:w-1/3">
+                <div class="bg-white rounded-xl shadow-md p-4 h-full">
+                    <h2 class="text-lg font-semibold text-secondary mb-3 flex items-center">
+                        <i class="fa fa-users mr-2"></i> 好汉菜单
+                        <span class="ml-2 text-sm font-normal text-gray-500">(共108位)</span>
+                    </h2>
+                    
+                    <!-- 搜索框 -->
+                    <div class="relative mb-3">
+                        <input type="text" id="heroSearch" placeholder="搜索好汉..." 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary text-sm">
+                        <i class="fa fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    
+                    <!-- 好汉列表 -->
+                    <div id="heroesMenu" class="max-h-[500px] overflow-y-auto pr-1 opacity-50 pointer-events-none transition-opacity duration-500">
+                        <div class="grid grid-cols-2 sm:grid-cols-1 gap-2">
+                            <!-- 好汉按钮将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 游戏结束弹窗 -->
+        <div id="gameOverModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-3 transform transition-all duration-300 scale-95 opacity-0" id="modalContent">
+                <div class="text-center mb-3">
+                    <div id="gameOverIcon" class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-3">
+                        <i class="fa fa-trophy text-3xl text-yellow-500"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-gray-800 mb-1.5" id="gameOverTitle">恭喜你！</h2>
+                    <p class="text-gray-600" id="completionText">你已完成所有事件的挑战</p>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div class="flex justify-between mb-2 pb-2 border-b border-gray-100">
+                        <span class="text-gray-600">完成事件:</span>
+                        <span id="finalEventCount" class="font-semibold text-gray-800">0/0</span>
+                    </div>
+                    <div class="flex justify-between mb-2 pb-2 border-b border-gray-100">
+                        <span class="text-gray-600">用时:</span>
+                        <span id="finalTime" class="font-semibold text-gray-800">00:00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">提示次数:</span>
+                        <span id="finalHintCount" class="font-semibold text-gray-800">0</span>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col gap-2">
+                    <button id="closeResultBtn" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                        返回主页
+                    </button>
+                    <button id="playAgainBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                        再玩一次
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 历史记录弹窗 -->
+        <div id="historyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-2xl p-5 max-w-2xl w-full mx-3 max-h-[70vh] overflow-hidden flex flex-col" id="historyModalContent">
+                <div class="text-center mb-3">
+                    <h2 class="text-lg font-bold text-gray-800 mb-1.5">游戏历史记录</h2>
+                    <p class="text-gray-600">所有游戏结果记录</p>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto mb-4">
+                    <div id="historyList" class="space-y-3">
+                        <!-- 历史记录将通过JavaScript动态生成 -->
+                        <div class="text-center text-gray-500 py-6" id="emptyHistory">
+                            暂无历史记录
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button id="exportHistoryBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                        <i class="fa fa-download mr-1"></i> 导出记录
+                    </button>
+                    <button id="clearHistoryBtn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-3 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                        清空记录
+                    </button>
+                    <button id="closeHistoryBtn" class="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-2 px-3 rounded-lg shadow-md transition-all duration-300 focus:outline-none">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="text-center text-gray-500 py-3">
+            <p>水浒传事件-好汉选择游戏 | 基于中国古典文学名著</p>
+        </footer>
+    </div>
+
+    <script>
+        // 游戏设置
+        const gameSettings = {
+            eventCount: 10,          // 事件数量
+            timerDuration: 5,        // 倒计时时长(分钟)
+            showAlias: true          // 是否显示好汉别称
+        };
+
+        // 水浒传主要事件数据（修正重复事件）
+        const allEvents = [
+            {
+                id: "event-1",
+                name: "智取生辰纲",
+                heroes: ["晁盖", "吴用", "公孙胜", "刘唐", "阮小二", "阮小五", "阮小七", "白胜"]
+            },
+            {
+                id: "event-2",
+                name: "三打祝家庄",
+                heroes: ["宋江", "吴用", "林冲", "秦明", "花荣", "李逵", "石秀", "孙立", "扈三娘", "解珍", "解宝", "乐和"]
+            },
+            {
+                id: "event-3",
+                name: "大破高唐州",
+                heroes: ["宋江", "吴用", "林冲", "秦明", "花荣", "公孙胜", "戴宗", "李逵"]
+            },
+            {
+                id: "event-4",
+                name: "江州劫法场",
+                heroes: ["晁盖", "宋江", "李逵", "戴宗", "李俊", "穆弘", "张横", "阮小七", "石秀", "欧鹏", "燕顺", "杨林", "薛永", "蒋敬", "童威", "童猛"]
+            },
+            {
+                id: "event-5",
+                name: "大闹野猪林",
+                heroes: ["鲁智深", "林冲"]
+            },
+            {
+                id: "event-6",
+                name: "血溅鸳鸯楼",
+                heroes: ["武松"]
+            },
+            {
+                id: "event-7",
+                name: "拳打镇关西",
+                heroes: ["鲁智深"]
+            },
+            {
+                id: "event-8",
+                name: "景阳冈打虎",
+                heroes: ["武松"]
+            },
+            {
+                id: "event-9",
+                name: "风雪山神庙",
+                heroes: ["林冲"]
+            },
+            {
+                id: "event-10",
+                name: "怒杀阎婆惜",
+                heroes: ["宋江"]
+            },
+            {
+                id: "event-11",
+                name: "智取大名府",
+                heroes: ["宋江", "吴用", "卢俊义", "关胜", "林冲", "秦明", "呼延灼", "花荣", "柴进", "时迁", "戴宗", "李逵"]
+            },
+            {
+                id: "event-12",
+                name: "大破曾头市",
+                heroes: ["宋江", "吴用", "卢俊义", "晁盖", "林冲", "秦明", "花荣", "李逵", "武松", "鲁智深"]
+            },
+            {
+                id: "event-13",
+                name: "大闹五台山",
+                heroes: ["鲁智深"]
+            },
+            {
+                id: "event-14",
+                name: "火烧草料场",
+                heroes: ["林冲", "陆谦", "富安"]
+            },
+            {
+                id: "event-15",
+                name: "智取清风寨",
+                heroes: ["花荣", "宋江", "秦明", "黄信", "燕顺", "王英", "郑天寿"]
+            },
+            {
+                id: "event-16",
+                name: "大破连环马",
+                heroes: ["宋江", "吴用", "呼延灼", "徐宁", "林冲", "秦明", "花荣", "董平", "张清"]
+            },
+            {
+                id: "event-17",
+                name: "夜闹江州城",
+                heroes: ["李逵", "宋江", "戴宗"]
+            },
+            {
+                id: "event-18",
+                name: "智取无为军",
+                heroes: ["宋江", "晁盖", "吴用", "李逵", "张顺", "李俊", "穆弘"]
+            },
+            {
+                id: "event-19",
+                name: "征方腊",
+                heroes: ["宋江", "卢俊义", "吴用", "公孙胜", "林冲", "秦明", "呼延灼", "花荣", "柴进", "李应", "朱仝", "鲁智深", "武松", "董平", "张清", "杨志", "徐宁", "索超", "戴宗", "刘唐", "李逵", "史进", "穆弘", "雷横", "李俊", "阮小二", "阮小五", "阮小七", "张横", "张顺", "杨雄", "石秀", "解珍", "解宝"]
+            },
+            {
+                id: "event-20",
+                name: "元宵闹东京",
+                heroes: ["宋江", "柴进", "戴宗", "李逵", "燕青"]
+            }
+        ];
+
+        // 水浒传108好汉数据
+        const allHeroes = [
+            // 三十六天罡星
+            { name: '宋江', alias: '及时雨', rank: 1 },
+            { name: '卢俊义', alias: '玉麒麟', rank: 2 },
+            { name: '吴用', alias: '智多星', rank: 3 },
+            { name: '公孙胜', alias: '入云龙', rank: 4 },
+            { name: '关胜', alias: '大刀', rank: 5 },
+            { name: '林冲', alias: '豹子头', rank: 6 },
+            { name: '秦明', alias: '霹雳火', rank: 7 },
+            { name: '呼延灼', alias: '双鞭', rank: 8 },
+            { name: '花荣', alias: '小李广', rank: 9 },
+            { name: '柴进', alias: '小旋风', rank: 10 },
+            { name: '李应', alias: '扑天雕', rank: 11 },
+            { name: '朱仝', alias: '美髯公', rank: 12 },
+            { name: '鲁智深', alias: '花和尚', rank: 13 },
+            { name: '武松', alias: '行者', rank: 14 },
+            { name: '董平', alias: '双枪将', rank: 15 },
+            { name: '张清', alias: '没羽箭', rank: 16 },
+            { name: '杨志', alias: '青面兽', rank: 17 },
+            { name: '徐宁', alias: '金枪手', rank: 18 },
+            { name: '索超', alias: '急先锋', rank: 19 },
+            { name: '戴宗', alias: '神行太保', rank: 20 },
+            { name: '刘唐', alias: '赤发鬼', rank: 21 },
+            { name: '李逵', alias: '黑旋风', rank: 22 },
+            { name: '史进', alias: '九纹龙', rank: 23 },
+            { name: '穆弘', alias: '没遮拦', rank: 24 },
+            { name: '雷横', alias: '插翅虎', rank: 25 },
+            { name: '李俊', alias: '混江龙', rank: 26 },
+            { name: '阮小二', alias: '立地太岁', rank: 27 },
+            { name: '阮小五', alias: '短命二郎', rank: 28 },
+            { name: '阮小七', alias: '活阎罗', rank: 29 },
+            { name: '张横', alias: '船火儿', rank: 30 },
+            { name: '张顺', alias: '浪里白条', rank: 31 },
+            { name: '杨雄', alias: '病关索', rank: 32 },
+            { name: '石秀', alias: '拼命三郎', rank: 33 },
+            { name: '解珍', alias: '两头蛇', rank: 34 },
+            { name: '解宝', alias: '双尾蝎', rank: 35 },
+            { name: '燕青', alias: '浪子', rank: 36 },
+            
+            // 七十二地煞星（节选）
+            { name: '朱武', alias: '神机军师', rank: 37 },
+            { name: '黄信', alias: '镇三山', rank: 38 },
+            { name: '孙立', alias: '病尉迟', rank: 39 },
+            { name: '宣赞', alias: '丑郡马', rank: 40 },
+            { name: '郝思文', alias: '井木犴', rank: 41 },
+            { name: '韩滔', alias: '百胜将', rank: 42 },
+            { name: '彭玘', alias: '天目将', rank: 43 },
+            { name: '单廷圭', alias: '圣水将', rank: 44 },
+            { name: '魏定国', alias: '神火将', rank: 45 },
+            { name: '萧让', alias: '圣手书生', rank: 46 },
+            { name: '裴宣', alias: '铁面孔目', rank: 47 },
+            { name: '欧鹏', alias: '摩云金翅', rank: 48 },
+            { name: '邓飞', alias: '火眼狻猊', rank: 49 },
+            { name: '燕顺', alias: '锦毛虎', rank: 50 },
+            { name: '杨林', alias: '锦豹子', rank: 51 },
+            { name: '凌振', alias: '轰天雷', rank: 52 },
+            { name: '蒋敬', alias: '神算子', rank: 53 },
+            { name: '吕方', alias: '小温侯', rank: 54 },
+            { name: '郭盛', alias: '赛仁贵', rank: 55 },
+            { name: '安道全', alias: '神医', rank: 56 },
+            { name: '皇甫端', alias: '紫髯伯', rank: 57 },
+            { name: '王英', alias: '矮脚虎', rank: 58 },
+            { name: '扈三娘', alias: '一丈青', rank: 59 },
+            { name: '鲍旭', alias: '丧门神', rank: 60 },
+            { name: '樊瑞', alias: '混世魔王', rank: 61 },
+            { name: '孔明', alias: '毛头星', rank: 62 },
+            { name: '孔亮', alias: '独火星', rank: 63 },
+            { name: '项充', alias: '八臂哪吒', rank: 64 },
+            { name: '李衮', alias: '飞天大圣', rank: 65 },
+            { name: '金大坚', alias: '玉臂匠', rank: 66 },
+            { name: '马麟', alias: '铁笛仙', rank: 67 },
+            { name: '童威', alias: '出洞蛟', rank: 68 },
+            { name: '童猛', alias: '翻江蜃', rank: 69 },
+            { name: '孟康', alias: '玉幡竿', rank: 70 },
+            { name: '侯健', alias: '通臂猿', rank: 71 },
+            { name: '陈达', alias: '跳涧虎', rank: 72 },
+            { name: '杨春', alias: '白花蛇', rank: 73 },
+            { name: '郑天寿', alias: '白面郎君', rank: 74 },
+            { name: '陶宗旺', alias: '九尾龟', rank: 75 },
+            { name: '宋清', alias: '铁扇子', rank: 76 },
+            { name: '乐和', alias: '铁叫子', rank: 77 },
+            { name: '龚旺', alias: '花项虎', rank: 78 },
+            { name: '丁得孙', alias: '中箭虎', rank: 79 },
+            { name: '穆春', alias: '小遮拦', rank: 80 },
+            { name: '曹正', alias: '操刀鬼', rank: 81 },
+            { name: '宋万', alias: '云里金刚', rank: 82 },
+            { name: '杜迁', alias: '摸着天', rank: 83 },
+            { name: '薛永', alias: '病大虫', rank: 84 },
+            { name: '施恩', alias: '金眼彪', rank: 85 },
+            { name: '李忠', alias: '打虎将', rank: 86 },
+            { name: '周通', alias: '小霸王', rank: 87 },
+            { name: '汤隆', alias: '金钱豹子', rank: 88 },
+            { name: '杜兴', alias: '鬼脸儿', rank: 89 },
+            { name: '邹渊', alias: '出林龙', rank: 90 },
+            { name: '邹润', alias: '独角龙', rank: 91 },
+            { name: '朱贵', alias: '旱地忽律', rank: 92 },
+            { name: '朱富', alias: '笑面虎', rank: 93 },
+            { name: '蔡福', alias: '铁臂膊', rank: 94 },
+            { name: '蔡庆', alias: '一枝花', rank: 95 },
+            { name: '李立', alias: '催命判官', rank: 96 },
+            { name: '李云', alias: '青眼虎', rank: 97 },
+            { name: '焦挺', alias: '没面目', rank: 98 },
+            { name: '石勇', alias: '石将军', rank: 99 },
+            { name: '孙新', alias: '小尉迟', rank: 100 },
+            { name: '顾大嫂', alias: '母大虫', rank: 101 },
+            { name: '张青', alias: '菜园子', rank: 102 },
+            { name: '孙二娘', alias: '母夜叉', rank: 103 },
+            { name: '王定六', alias: '活闪婆', rank: 104 },
+            { name: '郁保四', alias: '险道神', rank: 105 },
+            { name: '白胜', alias: '白日鼠', rank: 106 },
+            { name: '时迁', alias: '鼓上蚤', rank: 107 },
+            { name: '段景住', alias: '金毛犬', rank: 108 },
+            // 补充事件中出现的特殊人物
+            { name: '晁盖', alias: '托塔天王', rank: 0 },
+            { name: '陆谦', alias: '陆虞候', rank: 0 },
+            { name: '富安', alias: '', rank: 0 }
+        ];
+
+        // 游戏状态
+        const gameState = {
+            isPlaying: false,
+            selectedEvent: null,        // 当前选中的事件
+            selectedHeroes: [],         // 当前选中的好汉
+            completedEvents: [],        // 已完成的事件
+            activeEvents: [],           // 当前游戏中的事件
+            totalEvents: 0,             // 总事件数
+            timer: null,                // 计时器
+            totalSeconds: 0,            // 总倒计时秒数
+            remainingSeconds: 0,        // 剩余秒数
+            hintCount: 0,               // 提示次数
+            maxHints: 3,                // 最大提示次数
+            gameStartTime: null         // 游戏开始时间
+        };
+
+        // DOM 元素
+        const eventsContainer = document.getElementById('eventsContainer');
+        const heroesMenu = document.getElementById('heroesMenu').querySelector('div');
+        const currentEventContainer = document.getElementById('currentEventContainer');
+        const selectedHeroesContainer = document.getElementById('selectedHeroesContainer');
+        const startBtn = document.getElementById('startBtn');
+        const hintBtn = document.getElementById('hintBtn');
+        const historyBtn = document.getElementById('historyBtn');
+        const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+        const submitSelectionBtn = document.getElementById('submitSelectionBtn');
+        const heroSearch = document.getElementById('heroSearch');
+        const currentEventBadge = document.getElementById('currentEventBadge');
+        const completedEventsDisplay = document.getElementById('completedEvents');
+        const gameTimerDisplay = document.getElementById('gameTimer');
+        const hintCountDisplay = document.getElementById('hintCount');
+        const totalEventsDisplay = document.getElementById('totalEventsDisplay');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const modalContent = document.getElementById('modalContent');
+        const finalEventCount = document.getElementById('finalEventCount');
+        const finalTime = document.getElementById('finalTime');
+        const finalHintCount = document.getElementById('finalHintCount');
+        const playAgainBtn = document.getElementById('playAgainBtn');
+        const closeResultBtn = document.getElementById('closeResultBtn');
+        const completionText = document.getElementById('completionText');
+        const gameOverTitle = document.getElementById('gameOverTitle');
+        const gameOverIcon = document.getElementById('gameOverIcon');
+        const historyModal = document.getElementById('historyModal');
+        const historyModalContent = document.getElementById('historyModalContent');
+        const historyList = document.getElementById('historyList');
+        const emptyHistory = document.getElementById('emptyHistory');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+        const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsModal = document.getElementById('settingsModal');
+        const settingsModalContent = document.getElementById('settingsModalContent');
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        const eventCountSelect = document.getElementById('eventCount');
+        const timerDurationInput = document.getElementById('timerDuration');
+        const showAliasCheckbox = document.getElementById('showAlias');
+
+        // 事件监听器
+        startBtn.addEventListener('click', toggleGame);
+        hintBtn.addEventListener('click', useHint);
+        clearSelectionBtn.addEventListener('click', clearSelection);
+        submitSelectionBtn.addEventListener('click', submitSelection);
+        heroSearch.addEventListener('input', filterHeroes);
+        historyBtn.addEventListener('click', showHistory);
+        closeHistoryBtn.addEventListener('click', hideHistory);
+        clearHistoryBtn.addEventListener('click', clearHistory);
+        exportHistoryBtn.addEventListener('click', exportHistoryToCSV);
+        playAgainBtn.addEventListener('click', restartGame);
+        closeResultBtn.addEventListener('click', closeGameResult);
+        settingsBtn.addEventListener('click', showSettings);
+        saveSettingsBtn.addEventListener('click', saveSettings);
+
+        // 初始化页面
+        function init() {
+            // 加载保存的设置
+            loadSettings();
+            
+            // 更新设置表单
+            updateSettingsForm();
+            
+            // 初始渲染所有事件和好汉
+            renderAllEvents();
+            renderAllHeroes();
+            loadHistory();
+        }
+
+        // 显示设置面板
+        function showSettings() {
+            if (gameState.isPlaying) {
+                alert('游戏进行中，无法更改设置');
+                return;
+            }
+            
+            settingsModal.classList.remove('hidden');
+            setTimeout(() => {
+                settingsModalContent.classList.remove('scale-95', 'opacity-0');
+                settingsModalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        // 保存设置
+        function saveSettings() {
+            // 更新设置
+            gameSettings.eventCount = eventCountSelect.value === 'all' ? 'all' : parseInt(eventCountSelect.value);
+            gameSettings.timerDuration = parseInt(timerDurationInput.value);
+            gameSettings.showAlias = showAliasCheckbox.checked;
+            
+            // 保存到本地存储
+            localStorage.setItem('waterMarginSettings', JSON.stringify(gameSettings));
+            
+            // 隐藏设置面板
+            settingsModalContent.classList.remove('scale-100', 'opacity-100');
+            settingsModalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                settingsModal.classList.add('hidden');
+                // 重新渲染事件和好汉以应用新设置
+                renderAllEvents();
+                renderAllHeroes();
+            }, 300);
+        }
+
+        // 加载保存的设置
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('waterMarginSettings');
+            if (savedSettings) {
+                const parsedSettings = JSON.parse(savedSettings);
+                gameSettings.eventCount = parsedSettings.eventCount || 10;
+                gameSettings.timerDuration = parsedSettings.timerDuration || 5;
+                gameSettings.showAlias = parsedSettings.showAlias !== undefined ? parsedSettings.showAlias : true;
+            }
+        }
+
+        // 更新设置表单
+        function updateSettingsForm() {
+            eventCountSelect.value = gameSettings.eventCount === 'all' ? 'all' : gameSettings.eventCount;
+            timerDurationInput.value = gameSettings.timerDuration;
+            showAliasCheckbox.checked = gameSettings.showAlias;
+        }
+
+        // 切换游戏状态（开始/重置）
+        function toggleGame() {
+            if (gameState.isPlaying) {
+                // 重置游戏
+                resetGame();
+                startBtn.textContent = '开始游戏';
+            } else {
+                // 开始游戏
+                startGame();
+                startBtn.textContent = '重置游戏';
+            }
+        }
+
+        // 开始游戏
+        function startGame() {
+            // 重置游戏状态
+            resetGameState();
+            
+            // 选择要使用的事件
+            selectActiveEvents();
+            
+            // 启用游戏区域
+            eventsContainer.classList.remove('opacity-50', 'pointer-events-none');
+            heroesMenu.parentElement.classList.remove('opacity-50', 'pointer-events-none');
+            hintBtn.classList.remove('opacity-50', 'pointer-events-none');
+            
+            // 开始倒计时
+            startCountdown();
+            
+            // 记录游戏开始时间
+            gameState.gameStartTime = new Date();
+            
+            // 更新UI
+            updateGameStats();
+            gameState.isPlaying = true;
+        }
+
+        // 选择当前游戏使用的事件
+        function selectActiveEvents() {
+            let eventCount = gameSettings.eventCount === 'all' ? allEvents.length : gameSettings.eventCount;
+            
+            // 随机选择事件
+            const shuffledEvents = [...allEvents].sort(() => Math.random() - 0.5);
+            gameState.activeEvents = shuffledEvents.slice(0, eventCount);
+            gameState.totalEvents = gameState.activeEvents.length;
+            
+            // 渲染事件卡片
+            renderEvents();
+        }
+
+        // 渲染所有事件（游戏外显示）
+        function renderAllEvents() {
+            eventsContainer.innerHTML = '';
+            allEvents.forEach(event => {
+                const eventCard = createEventCard(event, false);
+                eventsContainer.appendChild(eventCard);
+            });
+        }
+
+        // 渲染当前游戏的事件
+        function renderEvents() {
+            eventsContainer.innerHTML = '';
+            gameState.activeEvents.forEach(event => {
+                const isCompleted = gameState.completedEvents.includes(event.id);
+                const eventCard = createEventCard(event, isCompleted);
+                eventsContainer.appendChild(eventCard);
+            });
+        }
+
+        // 创建事件卡片
+        function createEventCard(event, isCompleted) {
+            const card = document.createElement('div');
+            card.id = event.id;
+            card.className = `bg-white rounded-lg border border-gray-200 p-3 card-hover cursor-pointer ${isCompleted ? 'event-completed' : ''}`;
+            
+            if (gameState.selectedEvent?.id === event.id && !isCompleted) {
+                card.classList.add('card-selected');
+            }
+            
+            card.innerHTML = `
+                <div class="font-medium text-accent">${event.name}</div>
+                <div class="text-xs text-gray-500 mt-1">好汉数量: ${event.heroes.length}</div>
+                ${isCompleted ? '<div class="absolute top-2 right-2 text-green-500"><i class="fa fa-check-circle"></i></div>' : ''}
+            `;
+            
+            if (!isCompleted) {
+                card.addEventListener('click', () => selectEvent(event));
+            }
+            
+            return card;
+        }
+
+        // 选择事件
+        function selectEvent(event) {
+            if (!gameState.isPlaying) return;
+            
+            // 移除之前选中事件的样式
+            if (gameState.selectedEvent) {
+                const prevCard = document.getElementById(gameState.selectedEvent.id);
+                if (prevCard) prevCard.classList.remove('card-selected');
+            }
+            
+            // 设置新选中的事件
+            gameState.selectedEvent = event;
+            gameState.selectedHeroes = [];
+            
+            // 添加新选中事件的样式
+            const currentCard = document.getElementById(event.id);
+            currentCard.classList.add('card-selected');
+            
+            // 更新UI
+            updateCurrentEventDisplay();
+            updateSelectedHeroesDisplay();
+            updateActionButtons();
+        }
+
+        // 更新当前事件显示
+        function updateCurrentEventDisplay() {
+            if (gameState.selectedEvent) {
+                currentEventContainer.textContent = gameState.selectedEvent.name;
+                currentEventBadge.classList.remove('hidden');
+            } else {
+                currentEventContainer.textContent = '请从上方选择一个事件';
+                currentEventBadge.classList.add('hidden');
+            }
+        }
+
+        // 渲染所有好汉
+        function renderAllHeroes(filter = '') {
+            heroesMenu.innerHTML = '';
+            
+            const filteredHeroes = allHeroes.filter(hero => 
+                hero.name.includes(filter) || (hero.alias && hero.alias.includes(filter))
+            );
+            
+            filteredHeroes.forEach(hero => {
+                const heroBtn = createHeroButton(hero);
+                heroesMenu.appendChild(heroBtn);
+            });
+        }
+
+        // 创建好汉按钮
+        function createHeroButton(hero) {
+            const btn = document.createElement('button');
+            const isSelected = gameState.selectedHeroes.some(h => h.name === hero.name);
+            
+            let displayText = hero.name;
+            if (gameSettings.showAlias && hero.alias) {
+                displayText += ` (${hero.alias})`;
+            }
+            
+            btn.className = `text-left px-3 py-2 rounded border ${isSelected ? 'hero-added' : 'border-gray-200 hover:border-secondary hover:bg-secondary/5'} transition-all duration-200 text-sm`;
+            btn.innerHTML = displayText;
+            
+            btn.addEventListener('click', () => toggleHeroSelection(hero));
+            
+            return btn;
+        }
+
+        // 切换好汉选择状态
+        function toggleHeroSelection(hero) {
+            if (!gameState.selectedEvent || !gameState.isPlaying) return;
+            
+            const index = gameState.selectedHeroes.findIndex(h => h.name === hero.name);
+            
+            if (index === -1) {
+                // 添加选择
+                gameState.selectedHeroes.push(hero);
+            } else {
+                // 取消选择
+                gameState.selectedHeroes.splice(index, 1);
+            }
+            
+            // 更新UI
+            updateSelectedHeroesDisplay();
+            updateHeroButtons();
+            updateActionButtons();
+        }
+
+        // 更新好汉按钮状态
+        function updateHeroButtons() {
+            const filter = heroSearch.value;
+            renderAllHeroes(filter);
+        }
+
+        // 过滤好汉列表
+        function filterHeroes() {
+            const filter = heroSearch.value.trim();
+            renderAllHeroes(filter);
+        }
+
+        // 更新已选好汉显示
+        function updateSelectedHeroesDisplay() {
+            selectedHeroesContainer.innerHTML = '';
+            
+            if (gameState.selectedHeroes.length === 0) {
+                selectedHeroesContainer.innerHTML = '<div class="text-gray-500 text-sm italic">暂无选择</div>';
+                return;
+            }
+            
+            gameState.selectedHeroes.forEach(hero => {
+                const tag = document.createElement('div');
+                tag.className = 'bg-secondary/10 text-secondary px-2 py-1 rounded-full text-sm flex items-center';
+                tag.innerHTML = `
+                    ${hero.name}
+                    <button class="ml-1 text-secondary/70 hover:text-secondary" data-hero="${hero.name}">
+                        <i class="fa fa-times-circle"></i>
+                    </button>
+                `;
+                
+                // 移除按钮事件
+                tag.querySelector('button').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const heroName = e.target.closest('button').dataset.hero;
+                    const index = gameState.selectedHeroes.findIndex(h => h.name === heroName);
+                    if (index !== -1) {
+                        gameState.selectedHeroes.splice(index, 1);
+                        updateSelectedHeroesDisplay();
+                        updateHeroButtons();
+                        updateActionButtons();
+                    }
+                });
+                
+                selectedHeroesContainer.appendChild(tag);
+            });
+        }
+
+        // 更新操作按钮状态
+        function updateActionButtons() {
+            const hasSelection = gameState.selectedHeroes.length > 0;
+            const hasEvent = !!gameState.selectedEvent;
+            
+            // 更新清空按钮状态
+            if (hasSelection && hasEvent) {
+                clearSelectionBtn.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                clearSelectionBtn.classList.add('opacity-50', 'pointer-events-none');
+            }
+            
+            // 更新提交按钮状态
+            if (hasSelection && hasEvent) {
+                submitSelectionBtn.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                submitSelectionBtn.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        // 清空选择
+        function clearSelection() {
+            if (gameState.selectedHeroes.length === 0) return;
+            
+            gameState.selectedHeroes = [];
+            updateSelectedHeroesDisplay();
+            updateHeroButtons();
+            updateActionButtons();
+        }
+
+        // 提交答案
+        function submitSelection() {
+            if (!gameState.selectedEvent || gameState.selectedHeroes.length === 0) return;
+            
+            const selectedNames = gameState.selectedHeroes.map(h => h.name);
+            const correctNames = gameState.selectedEvent.heroes;
+            const isCorrect = 
+                selectedNames.length === correctNames.length &&
+                selectedNames.every(name => correctNames.includes(name));
+            
+            // 高亮显示结果
+            highlightEventResult(isCorrect);
+            
+            if (isCorrect) {
+                // 标记事件为已完成
+                gameState.completedEvents.push(gameState.selectedEvent.id);
+                
+                // 检查游戏是否结束
+                if (gameState.completedEvents.length === gameState.totalEvents) {
+                    endGame(true);
+                } else {
+                    // 重置选择状态
+                    resetSelectionState();
+                    updateGameStats();
+                }
+            } else {
+                // 错误反馈，3秒后清除高亮
+                setTimeout(() => {
+                    const eventCard = document.getElementById(gameState.selectedEvent.id);
+                    if (eventCard) eventCard.classList.remove('card-incorrect');
+                }, 3000);
+            }
+        }
+
+        // 高亮事件结果
+        function highlightEventResult(isCorrect) {
+            const eventCard = document.getElementById(gameState.selectedEvent.id);
+            if (isCorrect) {
+                eventCard.classList.remove('card-selected');
+                eventCard.classList.add('card-correct', 'event-completed');
+                eventCard.innerHTML += '<div class="absolute top-2 right-2 text-green-500"><i class="fa fa-check-circle"></i></div>';
+            } else {
+                eventCard.classList.add('card-incorrect');
+            }
+        }
+
+        // 重置选择状态
+        function resetSelectionState() {
+            // 移除选中样式
+            if (gameState.selectedEvent) {
+                const eventCard = document.getElementById(gameState.selectedEvent.id);
+                if (eventCard) eventCard.classList.remove('card-selected');
+            }
+            
+            // 清空选择
+            gameState.selectedEvent = null;
+            gameState.selectedHeroes = [];
+            
+            // 更新UI
+            updateCurrentEventDisplay();
+            updateSelectedHeroesDisplay();
+            updateHeroButtons();
+            updateActionButtons();
+        }
+
+        // 使用提示
+        function useHint() {
+            if (!gameState.selectedEvent || gameState.hintCount >= gameState.maxHints) return;
+            
+            // 找出还未被选中的正确好汉
+            const selectedNames = gameState.selectedHeroes.map(h => h.name);
+            const missingHeroes = gameState.selectedEvent.heroes.filter(
+                name => !selectedNames.includes(name)
+            );
+            
+            if (missingHeroes.length === 0) return;
+            
+            // 随机选择一个未被选中的好汉作为提示
+            const hintHeroName = missingHeroes[Math.floor(Math.random() * missingHeroes.length)];
+            const hintHero = allHeroes.find(h => h.name === hintHeroName);
+            
+            // 显示提示
+            alert(`提示：${hintHero.name}${hintHero.alias ? '（' + hintHero.alias + '）' : ''} 参与了该事件`);
+            
+            // 更新提示计数
+            gameState.hintCount++;
+            updateGameStats();
+        }
+
+        // 开始倒计时
+        function startCountdown() {
+            // 清除之前的计时器
+            if (gameState.timer) clearInterval(gameState.timer);
+            
+            // 设置总秒数
+            gameState.totalSeconds = gameSettings.timerDuration * 60;
+            gameState.remainingSeconds = gameState.totalSeconds;
+            
+            // 更新显示
+            updateTimerDisplay();
+            
+            // 启动计时器
+            gameState.timer = setInterval(() => {
+                gameState.remainingSeconds--;
+                
+                // 检查时间是否用完
+                if (gameState.remainingSeconds <= 0) {
+                    clearInterval(gameState.timer);
+                    endGame(false);
+                    return;
+                }
+                
+                // 更新显示
+                updateTimerDisplay();
+                
+                // 最后10秒添加警告动画
+                if (gameState.remainingSeconds <= 10) {
+                    gameTimerDisplay.classList.add('countdown-warning');
+                } else {
+                    gameTimerDisplay.classList.remove('countdown-warning');
+                }
+            }, 1000);
+        }
+
+        // 更新计时器显示
+        function updateTimerDisplay() {
+            const minutes = Math.floor(gameState.remainingSeconds / 60);
+            const seconds = gameState.remainingSeconds % 60;
+            gameTimerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // 更新游戏统计信息
+        function updateGameStats() {
+            completedEventsDisplay.textContent = `${gameState.completedEvents.length}/${gameState.totalEvents}`;
+            hintCountDisplay.textContent = `${gameState.hintCount}/${gameState.maxHints}`;
+            totalEventsDisplay.textContent = gameState.totalEvents;
+        }
+
+        // 结束游戏
+        function endGame(isSuccess) {
+            gameState.isPlaying = false;
+            clearInterval(gameState.timer);
+            
+            // 计算用时
+            const endTime = new Date();
+            const timeTakenMs = endTime - gameState.gameStartTime;
+            const timeTakenMinutes = Math.floor(timeTakenMs / 60000);
+            const timeTakenSeconds = Math.floor((timeTakenMs % 60000) / 1000);
+            const timeTakenFormatted = `${timeTakenMinutes.toString().padStart(2, '0')}:${timeTakenSeconds.toString().padStart(2, '0')}`;
+            
+            // 更新游戏结束弹窗内容
+            if (isSuccess) {
+                gameOverTitle.textContent = '恭喜你！';
+                completionText.textContent = '你已完成所有事件的挑战';
+                gameOverIcon.innerHTML = '<i class="fa fa-trophy text-3xl text-yellow-500"></i>';
+                gameOverIcon.className = 'inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-3';
+            } else {
+                gameOverTitle.textContent = '时间到！';
+                completionText.textContent = '很遗憾，未能完成所有挑战';
+                gameOverIcon.innerHTML = '<i class="fa fa-clock-o text-3xl text-red-500"></i>';
+                gameOverIcon.className = 'inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-3';
+            }
+            
+            finalEventCount.textContent = `${gameState.completedEvents.length}/${gameState.totalEvents}`;
+            finalTime.textContent = timeTakenFormatted;
+            finalHintCount.textContent = gameState.hintCount;
+            
+            // 保存历史记录
+            saveHistory({
+                date: new Date().toISOString(),
+                completed: gameState.completedEvents.length,
+                total: gameState.totalEvents,
+                time: timeTakenFormatted,
+                hints: gameState.hintCount,
+                success: isSuccess
+            });
+            
+            // 显示游戏结束弹窗
+            showGameOverModal();
+        }
+
+        // 显示游戏结束弹窗
+        function showGameOverModal() {
+            gameOverModal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        // 关闭游戏结果弹窗
+        function closeGameResult() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                gameOverModal.classList.add('hidden');
+                resetGame();
+                startBtn.textContent = '开始游戏';
+            }, 300);
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                gameOverModal.classList.add('hidden');
+                startGame();
+            }, 300);
+        }
+
+        // 重置游戏
+        function resetGame() {
+            // 清除计时器
+            if (gameState.timer) {
+                clearInterval(gameState.timer);
+                gameState.timer = null;
+            }
+            
+            // 重置游戏状态
+            resetGameState();
+            
+            // 重置UI
+            resetSelectionState();
+            renderAllEvents();
+            renderAllHeroes();
+            updateGameStats();
+            gameTimerDisplay.textContent = '00:00';
+            gameTimerDisplay.classList.remove('countdown-warning');
+            
+            // 禁用游戏区域
+            eventsContainer.classList.add('opacity-50', 'pointer-events-none');
+            heroesMenu.parentElement.classList.add('opacity-50', 'pointer-events-none');
+            hintBtn.classList.add('opacity-50', 'pointer-events-none');
+        }
+
+        // 重置游戏状态
+        function resetGameState() {
+            gameState.isPlaying = false;
+            gameState.selectedEvent = null;
+            gameState.selectedHeroes = [];
+            gameState.completedEvents = [];
+            gameState.activeEvents = [];
+            gameState.totalEvents = 0;
+            gameState.hintCount = 0;
+            gameState.gameStartTime = null;
+            gameState.remainingSeconds = 0;
+        }
+
+        // 显示历史记录
+        function showHistory() {
+            loadHistory();
+            historyModal.classList.remove('hidden');
+            setTimeout(() => {
+                historyModalContent.classList.remove('scale-95', 'opacity-0');
+                historyModalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        // 隐藏历史记录
+        function hideHistory() {
+            historyModalContent.classList.remove('scale-100', 'opacity-100');
+            historyModalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                historyModal.classList.add('hidden');
+            }, 300);
+        }
+
+        // 加载历史记录
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('waterMarginHistory') || '[]');
+            historyList.innerHTML = '';
+            
+            if (history.length === 0) {
+                historyList.appendChild(emptyHistory);
+                return;
+            }
+            
+            // 按日期排序（最新的在前）
+            history.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach((record, index) => {
+                const date = new Date(record.date);
+                const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                
+                const recordEl = document.createElement('div');
+                recordEl.className = 'bg-gray-50 rounded-lg p-3 border border-gray-100';
+                recordEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium">${index + 1}. ${formattedDate}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full ${record.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${record.success ? '完成挑战' : '未完成'}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                            <span class="text-gray-500">完成事件:</span>
+                            <span class="font-medium">${record.completed}/${record.total}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">用时:</span>
+                            <span class="font-medium">${record.time}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">提示次数:</span>
+                            <span class="font-medium">${record.hints}</span>
+                        </div>
+                    </div>
+                `;
+                
+                historyList.appendChild(recordEl);
+            });
+        }
+
+        // 保存历史记录
+        function saveHistory(record) {
+            const history = JSON.parse(localStorage.getItem('waterMarginHistory') || '[]');
+            history.push(record);
+            localStorage.setItem('waterMarginHistory', JSON.stringify(history));
+            loadHistory();
+        }
+
+        // 清空历史记录
+        function clearHistory() {
+            if (confirm('确定要清空所有历史记录吗？此操作不可恢复。')) {
+                localStorage.removeItem('waterMarginHistory');
+                loadHistory();
+            }
+        }
+
+        // 导出历史记录为CSV
+        function exportHistoryToCSV() {
+            const history = JSON.parse(localStorage.getItem('waterMarginHistory') || '[]');
+            if (history.length === 0) {
+                alert('没有历史记录可导出');
+                return;
+            }
+            
+            // 构建CSV内容
+            let csvContent = "日期,完成事件,总事件数,用时,提示次数,结果\n";
+            
+            history.forEach(record => {
+                const date = new Date(record.date).toLocaleString();
+                const result = record.success ? "完成挑战" : "未完成";
+                csvContent += `${date},${record.completed},${record.total},${record.time},${record.hints},${result}\n`;
+            });
+            
+            // 创建下载链接
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `水浒传游戏历史_${new Date().toLocaleDateString()}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 初始化游戏
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
